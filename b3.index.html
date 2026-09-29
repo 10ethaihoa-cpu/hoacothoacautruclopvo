@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trắc nghiệm Hóa Học 10 - Bài 3</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+    
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #020617; /* Slate 950 */
+            color: white;
+            overflow: hidden; /* Prevent scrollbar due to canvas */
+            margin: 0;
+            padding: 0;
+            user-select: none;
+        }
+
+        /* 3D Glassmorphism effect for panels */
+        .glass-panel {
+            background: rgba(30, 58, 138, 0.4); /* Xanh Blue 900 trong suốt */
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(34, 211, 238, 0.3); /* Viền mỏng màu Cyan */
+            box-shadow: 0 8px 32px rgba(2, 132, 199, 0.4), inset 0 0 20px rgba(34, 211, 238, 0.1);
+            border-radius: 1.5rem;
+        }
+
+        /* Animated background canvas */
+        #bg-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: -2;
+            background: radial-gradient(circle at center, #1e40af 0%, #020617 100%); /* Nền xanh bắt mắt */
+        }
+
+        /* Fireworks canvas */
+        #fireworks-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 50;
+            pointer-events: none;
+        }
+
+        /* Button hover & active states */
+        .btn-choice {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            transform-style: preserve-3d;
+        }
+        
+        .btn-choice:hover:not(:disabled) {
+            transform: translateY(-5px) scale(1.02);
+            box-shadow: 0 10px 25px rgba(56, 189, 248, 0.3);
+            border-color: rgba(56, 189, 248, 0.8);
+        }
+
+        .btn-choice:active:not(:disabled) {
+            transform: translateY(2px) scale(0.98);
+        }
+
+        /* Correct state */
+        .btn-correct {
+            background: linear-gradient(135deg, rgba(22, 163, 74, 0.8), rgba(21, 128, 61, 0.9)) !important;
+            border-color: #4ade80 !important;
+            box-shadow: 0 0 30px rgba(74, 222, 128, 0.5) !important;
+            color: white !important;
+        }
+
+        /* Incorrect state */
+        .btn-incorrect {
+            background: linear-gradient(135deg, rgba(220, 38, 38, 0.8), rgba(185, 28, 28, 0.9)) !important;
+            border-color: #f87171 !important;
+            box-shadow: 0 0 30px rgba(248, 113, 113, 0.5) !important;
+            color: white !important;
+            animation: shake 0.5s;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-10px); }
+            50% { transform: translateX(10px); }
+            75% { transform: translateX(-10px); }
+        }
+
+        /* Explanation box animation */
+        .explain-enter {
+            animation: slideDown 0.4s ease-out forwards;
+        }
+
+        @keyframes slideDown {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        /* Typography adjustments for Chemistry */
+        .chem-text {
+            font-family: 'Inter', sans-serif;
+            line-height: 1.6;
+        }
+        sup {
+            font-size: 0.6em;
+            vertical-align: super;
+        }
+    </style>
+</head>
+<body class="antialiased min-h-screen flex items-center justify-center">
+
+    <!-- 3D Space Background -->
+    <canvas id="bg-canvas"></canvas>
+    
+    <!-- Fireworks Overlay -->
+    <canvas id="fireworks-canvas"></canvas>
+
+    <!-- Main Application Container -->
+    <div class="relative w-full max-w-6xl mx-auto p-4 md:p-8 z-10 flex flex-col min-h-[95vh]">
+        
+        <!-- Glass Box for Quiz Layout (Matches Image) -->
+        <div class="glass-panel flex-grow flex flex-col p-6 md:p-10 relative overflow-hidden bg-gradient-to-br from-blue-900/60 to-cyan-900/50 border-cyan-500/30 shadow-[0_0_40px_rgba(6,182,212,0.2)] rounded-[2rem]">
+            
+            <!-- Header: Progress & Student Picker -->
+            <header class="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-4 border-b border-slate-700/50 pb-6">
+                <h2 class="text-2xl md:text-3xl font-bold text-white flex items-center gap-3">
+                    <i class="fa-solid fa-atom text-cyan-400 animate-spin-slow"></i>
+                    Câu hỏi <span id="current-q-num" class="text-cyan-400 ml-1">1</span> <span class="text-slate-400 text-xl font-normal"> / 10</span>
+                </h2>
+                
+                <button onclick="pickStudent()" class="flex items-center gap-3 bg-slate-800/80 hover:bg-slate-700 border border-slate-600 rounded-full px-5 py-2.5 transition-all shadow-lg active:scale-95 group">
+                    <span class="text-sm text-slate-300 group-hover:text-white transition-colors">Học sinh trả lời:</span>
+                    <span id="student-name" class="text-base md:text-lg font-bold text-yellow-400 flex items-center gap-2">
+                        <i class="fa-solid fa-user-astronaut"></i> Chọn ngẫu nhiên
+                    </span>
+                </button>
+            </header>
+
+            <!-- Question Area -->
+            <main class="flex-grow flex flex-col justify-start items-center gap-10 max-w-5xl mx-auto w-full pt-4">
+                
+                <!-- Question Text -->
+                <div id="question-card" class="text-center transition-opacity duration-300 w-full mb-4">
+                    <h3 id="question-text" class="text-3xl md:text-5xl font-bold leading-tight chem-text text-white drop-shadow-md">
+                        <!-- Question text injected here -->
+                    </h3>
+                </div>
+
+                <!-- 4 Answer Options Grid -->
+                <div id="options-container" class="grid grid-cols-1 md:grid-cols-2 gap-5 w-full">
+                    <!-- Buttons injected via JS -->
+                </div>
+
+                <!-- Action / Explanation Area -->
+                <div id="action-area" class="w-full flex flex-col items-center justify-start mt-4 min-h-[120px]">
+                    <!-- Action Button -->
+                    <button id="btn-action" onclick="handleAction()" class="hidden px-10 py-4 rounded-full font-bold text-xl shadow-lg transition-transform hover:scale-105 active:scale-95">
+                        Xem đáp án <i class="fa-solid fa-arrow-right ml-2"></i>
+                    </button>
+
+                    <!-- Explanation Box -->
+                    <div id="explanation-box" class="hidden w-full mt-6 glass-panel p-6 border-l-4 border-l-cyan-400 explain-enter bg-blue-900/90 text-left shadow-[0_0_20px_rgba(6,182,212,0.3)]">
+                        <h4 class="text-cyan-300 font-bold text-lg mb-2 flex items-center gap-2">
+                            <i class="fa-solid fa-lightbulb"></i> Giải thích chi tiết:
+                        </h4>
+                        <p id="explanation-text" class="text-white text-lg chem-text leading-relaxed">
+                            <!-- Explanation injected here -->
+                        </p>
+                    </div>
+                </div>
+            </main>
+        </div>
+        
+        <!-- Completion Screen -->
+        <div id="completion-screen" class="hidden absolute inset-0 bg-blue-950/95 backdrop-blur-xl z-50 flex flex-col items-center justify-center text-center p-6 rounded-[2rem] border border-cyan-800">
+            <i class="fa-solid fa-trophy text-7xl text-yellow-400 mb-6 drop-shadow-[0_0_30px_rgba(250,204,21,0.8)]"></i>
+            <h2 class="text-5xl font-bold text-white mb-4">Hoàn thành bài tập!</h2>
+            <p class="text-2xl text-slate-300 mb-10">Bạn đã vượt qua các câu hỏi trắc nghiệm Cấu trúc vỏ electron.</p>
+            <div class="text-4xl font-extrabold text-cyan-400 mb-10 bg-slate-800/80 px-10 py-5 rounded-3xl border-2 border-cyan-500/30 shadow-[0_0_20px_rgba(6,182,212,0.2)]">
+                Điểm số: <span id="final-score" class="text-white">0</span> / 10
+            </div>
+            <button onclick="restartQuiz()" class="px-12 py-5 rounded-full font-bold text-2xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white shadow-xl transition-all hover:scale-105 active:scale-95">
+                <i class="fa-solid fa-rotate-right mr-3"></i> Chơi lại từ đầu
+            </button>
+        </div>
+
+    </div>
+
+    <script>
+        // --- 1. QUIZ DATA (Dựa trên SGK Tr 21-25) ---
+        const quizData = [
+            {
+                text: "Theo mô hình hiện đại, các electron chuyển động trong nguyên tử như thế nào?",
+                options: [
+                    "A. Theo những quỹ đạo tròn xác định.",
+                    "B. Theo những quỹ đạo bầu dục xác định.",
+                    "C. Rất nhanh, không theo quỹ đạo xác định.",
+                    "D. Chuyển động chậm theo quỹ đạo hình số 8."
+                ],
+                correct: 2,
+                explanation: "Theo mô hình hiện đại, electron chuyển động rất nhanh xung quanh hạt nhân, <strong>không theo quỹ đạo xác định</strong>. Người ta chỉ xác định được vùng không gian có xác suất tìm thấy electron lớn nhất gọi là orbital nguyên tử (AO)."
+            },
+            {
+                text: "Orbital s và orbital p có hình dạng lần lượt là:",
+                options: [
+                    "A. Hình cầu và hình bầu dục.",
+                    "B. Hình cầu và hình số 8 nổi.",
+                    "C. Hình số 8 nổi và hình cầu.",
+                    "D. Hình tròn và hình số 8 nổi."
+                ],
+                correct: 1,
+                explanation: "Orbital s có sự phân bố đối xứng không gian <strong>hình cầu</strong>. Orbital p có sự định hướng không gian theo 3 trục tọa độ vuông góc tạo thành <strong>hình số 8 nổi</strong>."
+            },
+            {
+                text: "Theo nguyên lí loại trừ Pauli, trong 1 orbital chỉ chứa tối đa bao nhiêu electron?",
+                options: [
+                    "A. 1 electron.",
+                    "B. 2 electron có chiều quay giống nhau.",
+                    "C. 3 electron.",
+                    "D. 2 electron có chiều quay ngược nhau."
+                ],
+                correct: 3,
+                explanation: "Nguyên lí Pauli quy định mỗi ô orbital (1 AO) chứa tối đa <strong>2 electron</strong> và chúng phải có <strong>chiều tự quay ngược nhau</strong>, kí hiệu bằng 2 mũi tên ngược chiều."
+            },
+            {
+                text: "Lớp electron thứ 3 (lớp M) có chứa các phân lớp nào sau đây?",
+                options: [
+                    "A. 3s, 3p, 3d.",
+                    "B. 3s, 3p.",
+                    "C. 3s, 3p, 3d, 3f.",
+                    "D. 1s, 2s, 3s."
+                ],
+                correct: 0,
+                explanation: "Số phân lớp trong mỗi lớp bằng số thứ tự của lớp (n ≤ 4). Vì vậy lớp thứ 3 (n=3) có <strong>3 phân lớp</strong> là 3s, 3p và 3d."
+            },
+            {
+                text: "Tổng số electron tối đa chứa trong phân lớp p và phân lớp d lần lượt là:",
+                options: [
+                    "A. 2 và 6.",
+                    "B. 6 và 10.",
+                    "C. 6 và 14.",
+                    "D. 10 và 14."
+                ],
+                correct: 1,
+                explanation: "Phân lớp p có 3 AO, chứa tối đa 3 × 2 = <strong>6 electron</strong>. Phân lớp d có 5 AO, chứa tối đa 5 × 2 = <strong>10 electron</strong>."
+            },
+            {
+                text: "Cấu hình electron của nguyên tử Oxygen (Z=8) là:",
+                options: [
+                    "A. 1s² 2s² 2p³ 3s¹",
+                    "B. 1s² 2s² 2p⁵",
+                    "C. 1s² 2s² 2p⁶",
+                    "D. 1s² 2s² 2p⁴"
+                ],
+                correct: 3,
+                explanation: "Nguyên tử O có 8 electron. Theo nguyên lí vững bền ta điền lần lượt: 1s (2e), 2s (2e), còn lại 4e điền vào phân lớp 2p. Cấu hình đúng là <strong>1s² 2s² 2p⁴</strong>."
+            },
+            {
+                text: "Theo nguyên lí vững bền, thứ tự các phân lớp electron có mức năng lượng tăng dần là:",
+                options: [
+                    "A. 1s 2s 2p 3s 3p 3d 4s...",
+                    "B. 1s 2s 2p 3s 3p 4s 3d...",
+                    "C. 1s 2s 3s 2p 3p 4s 3d...",
+                    "D. 1s 2s 2p 3p 3s 4s 3d..."
+                ],
+                correct: 1,
+                explanation: "Thứ tự mức năng lượng tăng dần là: 1s 2s 2p 3s 3p <strong>4s 3d</strong>... Do phân lớp 4s có mức năng lượng thấp hơn 3d nên electron được điền vào 4s trước."
+            },
+            {
+                text: "Các nguyên tố mà nguyên tử có 5, 6, 7 electron ở lớp ngoài cùng thường là nguyên tố gì?",
+                options: [
+                    "A. Kim loại.",
+                    "B. Phi kim.",
+                    "C. Khí hiếm.",
+                    "D. Kim loại chuyển tiếp."
+                ],
+                correct: 1,
+                explanation: "Đặc điểm lớp electron ngoài cùng: 1, 2, 3 e thường là Kim loại; <strong>5, 6, 7 e thường là Phi kim</strong>; 8 e là Khí hiếm."
+            },
+            {
+                text: "Lớp electron thứ 2 (lớp L) có khả năng chứa tối đa bao nhiêu electron?",
+                options: [
+                    "A. 2 electron.",
+                    "B. 8 electron.",
+                    "C. 18 electron.",
+                    "D. 32 electron."
+                ],
+                correct: 1,
+                explanation: "Lớp thứ n chứa tối đa 2n² electron. Với n=2 (lớp L), số electron tối đa là 2 × (2²) = <strong>8 electron</strong> (gồm 2s² và 2p⁶)."
+            },
+            {
+                text: "Nguyên tử Calcium (Z=20) có cấu hình [Ar] 4s². Căn cứ vào số e lớp ngoài cùng, Ca là:",
+                options: [
+                    "A. Nguyên tố kim loại.",
+                    "B. Nguyên tố phi kim.",
+                    "C. Nguyên tố khí hiếm.",
+                    "D. Nguyên tố phóng xạ."
+                ],
+                correct: 0,
+                explanation: "Calcium có <strong>2 electron ở lớp ngoài cùng</strong> (nằm ở phân lớp 4s), do đó nó là <strong>nguyên tố kim loại</strong>."
+            }
+        ];
+
+        // --- 2. APP STATE ---
+        let currentIndex = 0;
+        let score = 0;
+        let isAnswered = false;
+        
+        // Random student list
+        const students = ["Nguyễn Văn A", "Trần Thị B", "Lê Hoàng C", "Phạm Quỳnh D", "Hoàng Anh E", "Vũ Đức F", "Đặng Ngọc G", "Bùi Minh H", "Hoàng Kim I", "Lê Gia K"];
+
+        // DOM Elements
+        const elQuestionText = document.getElementById('question-text');
+        const elCurrentNum = document.getElementById('current-q-num');
+        const optionsContainer = document.getElementById('options-container');
+        const btnAction = document.getElementById('btn-action');
+        const boxExplanation = document.getElementById('explanation-box');
+        const textExplanation = document.getElementById('explanation-text');
+        const completionScreen = document.getElementById('completion-screen');
+        const elFinalScore = document.getElementById('final-score');
+        const cardQuestion = document.getElementById('question-card');
+        const elStudentName = document.getElementById('student-name');
+
+        // --- 3. CORE LOGIC ---
+        
+        function pickStudent() {
+            elStudentName.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Đang chọn...`;
+            setTimeout(() => {
+                const randomName = students[Math.floor(Math.random() * students.length)];
+                elStudentName.innerHTML = `<i class="fa-solid fa-user-astronaut"></i> ${randomName}`;
+            }, 800);
+        }
+
+        // Load question
+        function loadQuestion() {
+            isAnswered = false;
+            const q = quizData[currentIndex];
+            
+            // Fade out/in effect
+            cardQuestion.style.opacity = '0';
+            optionsContainer.style.opacity = '0';
+            
+            setTimeout(() => {
+                elQuestionText.innerHTML = q.text;
+                elCurrentNum.innerText = currentIndex + 1;
+                
+                // Render Options (A, B, C, D)
+                optionsContainer.innerHTML = '';
+                q.options.forEach((opt, index) => {
+                    const btn = document.createElement('button');
+                    // Giao diện nút xanh đồng bộ
+                    btn.className = 'btn-choice glass-panel p-5 md:p-6 text-xl md:text-2xl font-semibold text-white border-2 border-cyan-500/30 bg-blue-900/50 hover:bg-blue-700/80 hover:border-cyan-400/80 transition-all text-left w-full h-full rounded-2xl shadow-lg';
+                    btn.innerHTML = opt;
+                    btn.onclick = () => checkAnswer(index, btn);
+                    optionsContainer.appendChild(btn);
+                });
+                
+                // Hide action & explanation
+                btnAction.classList.add('hidden');
+                boxExplanation.classList.add('hidden');
+                
+                cardQuestion.style.opacity = '1';
+                optionsContainer.style.opacity = '1';
+            }, 300);
+        }
+
+        // Handle User Answer
+        function checkAnswer(selectedIndex, btnElement) {
+            if (isAnswered) return; // Chỉ khóa click khi đã trả lời đúng
+            if (btnElement.disabled) return; // Không cho click lại nút đã chọn sai trước đó
+            
+            const q = quizData[currentIndex];
+            const isCorrect = (selectedIndex === q.correct);
+            
+            if (isCorrect) {
+                isAnswered = true; // Khóa toàn bộ các nút
+                btnElement.classList.add('btn-correct');
+                
+                // Chỉ cộng điểm nếu học sinh chưa chọn sai lần nào ở câu này
+                const hasFailed = Array.from(optionsContainer.querySelectorAll('button')).some(btn => btn.classList.contains('btn-incorrect'));
+                if (!hasFailed) {
+                    score++;
+                }
+                
+                triggerFireworks();
+                
+                // Vô hiệu hóa các nút khác và làm mờ
+                const allBtns = optionsContainer.querySelectorAll('button');
+                allBtns.forEach(btn => {
+                    btn.disabled = true;
+                    btn.classList.remove('hover:bg-blue-700/80', 'hover:border-cyan-400/80');
+                    if (btn !== btnElement) {
+                        btn.classList.add('opacity-50');
+                    }
+                });
+
+                // Hiện giải thích chớp nhoáng cho HS đọc nhanh
+                textExplanation.innerHTML = q.explanation;
+                boxExplanation.classList.remove('hidden');
+
+                // Tự động chuyển câu sau 3 giây
+                setTimeout(() => {
+                    nextQuestion();
+                }, 3000);
+                
+            } else {
+                // Chọn sai: Báo đỏ, rung, vô hiệu hóa nút này, cho phép chọn tiếp các đáp án khác (không hiện giải thích)
+                btnElement.classList.add('btn-incorrect');
+                btnElement.disabled = true;
+                btnElement.classList.remove('hover:bg-blue-700/80', 'hover:border-cyan-400/80');
+            }
+        }
+
+        // Handle Action Button click
+        function handleAction() {
+            nextQuestion();
+        }
+
+        function nextQuestion() {
+            currentIndex++;
+            if (currentIndex < quizData.length) {
+                loadQuestion();
+            } else {
+                showCompletion();
+            }
+        }
+
+        function showCompletion() {
+            elFinalScore.innerText = score;
+            completionScreen.classList.remove('hidden');
+            triggerFireworks(true); // Huge fireworks
+        }
+
+        function restartQuiz() {
+            currentIndex = 0;
+            score = 0;
+            elStudentName.innerHTML = `<i class="fa-solid fa-user-astronaut"></i> Chọn ngẫu nhiên`;
+            completionScreen.classList.add('hidden');
+            loadQuestion();
+        }
+
+        // Initialize
+        window.onload = () => {
+            loadQuestion();
+            initBackground();
+        };
+
+        // --- 4. GRAPHICS & ANIMATIONS (CANVAS) ---
+        
+        // Background 3D Starfield Effect
+        function initBackground() {
+            const canvas = document.getElementById('bg-canvas');
+            const ctx = canvas.getContext('2d');
+            let width, height;
+            let stars = [];
+
+            function resize() {
+                width = canvas.width = window.innerWidth;
+                height = canvas.height = window.innerHeight;
+            }
+            window.addEventListener('resize', resize);
+            resize();
+
+            for(let i=0; i<150; i++) {
+                stars.push({
+                    x: Math.random() * width,
+                    y: Math.random() * height,
+                    z: Math.random() * 2,
+                    radius: Math.random() * 1.5 + 0.5,
+                    alpha: Math.random()
+                });
+            }
+
+            function animateBg() {
+                ctx.clearRect(0, 0, width, height);
+                
+                stars.forEach(star => {
+                    // Move star
+                    star.y -= star.z * 0.5;
+                    star.alpha += (Math.random() - 0.5) * 0.05;
+                    
+                    if(star.alpha < 0.1) star.alpha = 0.1;
+                    if(star.alpha > 0.8) star.alpha = 0.8;
+
+                    if (star.y < 0) {
+                        star.y = height;
+                        star.x = Math.random() * width;
+                    }
+
+                    ctx.beginPath();
+                    ctx.arc(star.x, star.y, star.radius, 0, Math.PI * 2);
+                    ctx.fillStyle = `rgba(125, 211, 252, ${star.alpha})`; // Cyan tinted stars
+                    ctx.fill();
+                });
+
+                requestAnimationFrame(animateBg);
+            }
+            animateBg();
+        }
+
+        // Lightweight Fireworks System
+        const fwCanvas = document.getElementById('fireworks-canvas');
+        const fwCtx = fwCanvas.getContext('2d');
+        let particles = [];
+        
+        function resizeFw() {
+            fwCanvas.width = window.innerWidth;
+            fwCanvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resizeFw);
+        resizeFw();
+
+        class Particle {
+            constructor(x, y, color) {
+                this.x = x;
+                this.y = y;
+                this.color = color;
+                const angle = Math.random() * Math.PI * 2;
+                const speed = Math.random() * 8 + 2;
+                this.vx = Math.cos(angle) * speed;
+                this.vy = Math.sin(angle) * speed;
+                this.friction = 0.96;
+                this.gravity = 0.1;
+                this.alpha = 1;
+                this.decay = Math.random() * 0.015 + 0.015;
+            }
+            update() {
+                this.vx *= this.friction;
+                this.vy *= this.friction;
+                this.vy += this.gravity;
+                this.x += this.vx;
+                this.y += this.vy;
+                this.alpha -= this.decay;
+            }
+            draw(ctx) {
+                ctx.save();
+                ctx.globalAlpha = this.alpha;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, 3, 0, Math.PI * 2);
+                ctx.fillStyle = this.color;
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = this.color;
+                ctx.fill();
+                ctx.restore();
+            }
+        }
+
+        function animateFireworks() {
+            fwCtx.clearRect(0, 0, fwCanvas.width, fwCanvas.height);
+            for (let i = particles.length - 1; i >= 0; i--) {
+                particles[i].update();
+                particles[i].draw(fwCtx);
+                if (particles[i].alpha <= 0) {
+                    particles.splice(i, 1);
+                }
+            }
+            if(particles.length > 0){
+                requestAnimationFrame(animateFireworks);
+            }
+        }
+
+        function triggerFireworks(massive = false) {
+            const colors = ['#4ade80', '#38bdf8', '#facc15', '#f472b6']; // Tailwind colors
+            const count = massive ? 300 : 100;
+            const originX = window.innerWidth / 2;
+            const originY = massive ? window.innerHeight / 3 : window.innerHeight / 2;
+
+            for (let i = 0; i < count; i++) {
+                const color = colors[Math.floor(Math.random() * colors.length)];
+                // Randomize origin slightly for massive effect
+                const x = massive ? originX + (Math.random() - 0.5) * 300 : originX;
+                const y = massive ? originY + (Math.random() - 0.5) * 200 : originY;
+                particles.push(new Particle(x, y, color));
+            }
+            
+            animateFireworks();
+        }
+
+    </script>
+</body>
+</html>
